@@ -4,20 +4,27 @@
 enum custom_keycodes {
   KC_00 = SAFE_RANGE,
   KC_WINLK,    //Toggles Win key on and off
-  KC_MUTED	   //Mute Discord
 };
+bool muted_dc = false; // ADD this near the begining of keymap.c
+bool procces_record_user(uint16_t keycode, keyrecord_t *record) {
+	if (record->event.pressed) {
+		if (!muted_dc) {
+		muted_dc = true;
+		register_code16(KC_RCTL);
+		unregister_code(KC_RCTL);
 
+	} else {
+		muted_dc = false;
+		register_code16(KC_RCTL);
+		unregister_code(KC_RCTL);
+
+		}
+	}
+	return true;
+}
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
     case KC_00:
-        if (record->event.pressed) {
-            // when keycode KC_00 is pressed
-            SEND_STRING("00");
-        } else {
-            // when keycode KC_00 is released
-        }
-        break;
-    case KC_MUTED:
         if (record->event.pressed) {
             // when keycode KC_00 is pressed
             SEND_STRING("00");
@@ -49,6 +56,17 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 //      Ct_L     Win_L    Alt_L                               SPACE                               Alt_R    FN       Ct_R     Left     Down     Right
 
 
+    // The FN key by default maps to a momentary toggle to layer 1 to provide access to the QK_BOOT key (to put the board into bootloader mode). Without
+    // this mapping, you have to open the case to hit the button on the bottom of the PCB (near the USB cable attachment) while plugging in the USB
+    // cable to get the board into bootloader mode - definitely not fun when you're working on your QMK builds. Remove this and put it back to KC_RGUI
+    // if that's your preference.
+    //
+    // To put the keyboard in bootloader mode, use FN+backslash. If you accidentally put it into bootloader, you can just unplug the USB cable and
+    // it'll be back to normal when you plug it back in.
+    //
+    // This keyboard defaults to 6KRO instead of NKRO for compatibility reasons (some KVMs and BIOSes are incompatible with NKRO).
+    // Since this is, among other things, a "gaming" keyboard, a key combination to enable NKRO on the fly is provided for convenience.
+    // Press Fn+N to toggle between 6KRO and NKRO. This setting is persisted to the EEPROM and thus persists between restarts.
     [0] = LAYOUT(
         KC_ESC,  KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  KC_PSCR,          KC_MPLY,
         KC_GRV,  KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_MINS, KC_EQL,  KC_BSPC,          KC_DEL,
@@ -61,45 +79,27 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [1] = LAYOUT(
         _______, KC_MYCM, KC_WHOM, KC_CALC, KC_MSEL, KC_MPRV, KC_MNXT, KC_MPLY, KC_MSTP, KC_MUTE, KC_VOLD, KC_VOLU, _______, _______,          KC_MUTE,
         _______, RGB_TOG, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,          _______,
-        _______, _______, RGB_VAI, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, RESET,            _______,
+        _______, _______, RGB_VAI, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, QK_BOOT,            _______,
         _______, _______, RGB_VAD, _______, _______, _______, _______, _______, _______, _______, _______, _______,          _______,          _______,
         _______,          _______, RGB_HUI, _______, _______, _______, NK_TOGG, _______, _______, _______, _______,          _______, RGB_MOD, _______,
         _______, KC_WINLK, _______,                            _______,                            _______, _______, _______, RGB_SPD, RGB_RMOD, RGB_SPI
     ),
 
+
 };
 // clang-format on
 
-#ifdef ENCODER_ENABLE       // Encoder Functionality
-
-    bool encoder_update_user(uint8_t index, bool clockwise) {
-
-		switch(get_highest_layer(layer_state)) {
-			case 0:
-			if ( clockwise ) {
-				tap_code16(KC_MNXT);
-			} else {
-				tap_code16(KC_MPRV);
-			}
-			break;
-			
-			case 1:
-			default:
-			if ( clockwise ) {
-				tap_code(KC_VOLU);
-			} else {
-				tap_code(KC_VOLD);
-			}
-			break;			
-		}
-        return true;
-    }
+#if defined(ENCODER_MAP_ENABLE)
+const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
+    [0] = { ENCODER_CCW_CW(KC_MPRV, KC_MNXT) },
+    [1] = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU) }
+};
 #endif
 
 #ifdef RGB_MATRIX_ENABLE
     // Capslock indicator on Left side lights.
-    void rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
-        if (IS_HOST_LED_ON(USB_LED_CAPS_LOCK)) {
+    bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
+        if (host_keyboard_led_state().caps_lock) {
 			if (!caps_active) {
 				caps_active = true;
 				caps_flash_on = true;
@@ -109,7 +109,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 				caps_flasher = timer_read();
 				caps_flash_on = !caps_flash_on;
 			}
-
             rgb_matrix_set_color(LED_CAPS, RGB_WHITE);
             if (caps_flash_on) {
 				for (uint8_t i=0; i<sizeof(LED_SIDE_LEFT)/sizeof(LED_SIDE_LEFT[0]); i++) {
@@ -125,11 +124,14 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         } else {
 			caps_active = false;
 		}
-        if (keymap_config.no_gui) {
-            rgb_matrix_set_color(LED_LWIN, RGB_WHITE);  //light up Win key when disabled
-        }
+			if (muted_dc) {
+				rgb_matrix_set_color(LED_RCTL, RGB_RED); //light up RCtrl key when turn on
+			}
+			if (keymap_config.no_gui) {
+				rgb_matrix_set_color(LED_LWIN, RGB_RED);  //light up Win key when disabled
+			}
+		return false;		
     }
-
     void suspend_power_down_user(void) {
         rgb_matrix_set_suspend_state(true);
     }
@@ -138,7 +140,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         rgb_matrix_set_suspend_state(false);
     }
 #endif
-
 
 void keyboard_post_init_keymap(void) {
     // keyboard_post_init_user() moved to userspace

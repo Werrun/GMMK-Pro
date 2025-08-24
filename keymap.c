@@ -1,49 +1,39 @@
 #include QMK_KEYBOARD_H
+#include "process_keycode/process_magic.h"
 #include "rgb_matrix_map.h"
 
 enum custom_keycodes {
   KC_00 = SAFE_RANGE,
   KC_WINLK,    //Toggles Win key on and off
 };
-bool muted_dc = false; // ADD this near the begining of keymap.c
-bool procces_record_user(uint16_t keycode, keyrecord_t *record) {
-	if (record->event.pressed) {
-		if (!muted_dc) {
-		muted_dc = true;
-		register_code16(KC_RCTL);
-		unregister_code(KC_RCTL);
 
-	} else {
-		muted_dc = false;
-		register_code16(KC_RCTL);
-		unregister_code(KC_RCTL);
+bool muted_dc = false; // trạng thái mute Discord
 
-		}
-	}
-	return true;
-}
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-    switch (keycode) {
-    case KC_00:
-        if (record->event.pressed) {
-            // when keycode KC_00 is pressed
+    // xử lý custom keycodes & một số hành vi khác
+    if (record->event.pressed) {
+        if (keycode == KC_00) {
             SEND_STRING("00");
-        } else {
-            // when keycode KC_00 is released
+            return false; // đã xử lý
         }
-        break;
-    case KC_WINLK:
-        if (record->event.pressed) {
-            if(!keymap_config.no_gui) {
-                process_magic(GUI_OFF, record);
+        if (keycode == KC_WINLK) {
+            // Nếu GUI đang bật (no_gui == false) -> tắt GUI
+            if (!keymap_config.no_gui) {
+                process_magic(GU_OFF, record);
             } else {
-                process_magic(GUI_ON, record);
+                process_magic(GU_ON, record);
             }
-        } else  unregister_code16(keycode);
-        break;
+            return false; // đã xử lý qua process_magic
+        }
+        // Toggle trạng thái muted_dc khi bấm Right Control
+        if (keycode == KC_RCTL) {
+            muted_dc = !muted_dc;
+            // Không block keycode mặc định — trả về true để RCtrl vẫn gửi cho host.
+        }
     }
+
     return true;
-};
+}
 
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -72,7 +62,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_GRV,  KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_MINS, KC_EQL,  KC_BSPC,          KC_DEL,
         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC, KC_BSLS,          KC_PGUP,
         KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,          KC_ENT,           KC_PGDN,
-        KC_LSFT,          KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH,          KC_RSFT, KC_UP,   KC_END,
+        KC_LSFT,          KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH,          KC_RSFT, KC_UP,   KC_INS,
         KC_LCTL, KC_LGUI, KC_LALT,                            KC_SPC,                             KC_RALT, MO(1),   KC_RCTL, KC_LEFT, KC_DOWN, KC_RGHT
     ),
 
@@ -125,10 +115,13 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
 			caps_active = false;
 		}
 			if (muted_dc) {
-				rgb_matrix_set_color(LED_RCTL, RGB_RED); //light up RCtrl key when turn on
+				rgb_matrix_set_color(LED_RCTL, RGB_RED);
 			}
+			// muted_dc == false -> không ép màu -> trả về hiệu ứng mặc định
+
+			// Win Lock -> đỏ khi disable Win key
 			if (keymap_config.no_gui) {
-				rgb_matrix_set_color(LED_LWIN, RGB_RED);  //light up Win key when disabled
+				rgb_matrix_set_color(LED_LWIN, RGB_RED);
 			}
 		return false;		
     }
